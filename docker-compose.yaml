@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  postgres:
+    image: "postgres:15.2"
+    container_name: postgresDB
+    ports:
+    - "5432:5432"
+    environment:
+      POSTGRES_USER: storageData
+      POSTGRES_PASSWORD: storageData
+      POSTGRES_DB: storageData
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
