@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from typing import List, Optional
 from datetime import datetime, time
 from pydantic import BaseModel
+from datetime import datetime, timedelta
+from sqlalchemy import select, func, and_, or_, cast, Time,case
 from dataSync import load_csv_to_db  # Import the function from data_loader.py
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -19,7 +21,6 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy import select
 from sqlalchemy.sql import func
 from sqlalchemy import cast, TIMESTAMP
-from datetime import datetime, timedelta
 from createDB import store_timezone, store_hours, store_status, store_reports
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select, func, Time
@@ -91,79 +92,100 @@ async def generate_report(session, report_id):
     # For demo, let's assume we're calculating for a specific day
     # start_of_day = datetime.combine(today, datetime.min.time())
     # end_of_day = datetime.combine(today, datetime.max.time())
-    current_time = datetime.utcnow()
+    current_utc_str = "2023-01-19 15:28:46.983397"
+    current_utc = datetime.strptime(current_utc_str, "%Y-%m-%d %H:%M:%S.%f")
     report_data = {}
-
-    # Define time intervals
-    one_hour_ago = current_time - timedelta(hours=1)
-    one_day_ago = current_time - timedelta(days=1)
-    one_week_ago = current_time - timedelta(weeks=1)
+    print(current_utc,"current_utc")
     try:
-        print(one_week_ago)
+        start_time_hour = current_utc - timedelta(hours=1)
+        start_time_day = current_utc - timedelta(days=1)
+
         stmt = select(
             store_status.c.store_id,
-            store_status.c.timestamp_utc,
-            store_status.c.status,
-            store_hours.c.day,
-            func.extract('dow', func.timezone(func.coalesce(store_timezone.c.timezone_str, 'UTC'), store_status.c.timestamp_utc)).label('dow_utc_local'),
-            cast(store_hours.c.start_time_local, Time).label('start_time_local'),
-            cast(store_hours.c.end_time_local, Time).label('end_time_local'),
-            func.coalesce(store_timezone.c.timezone_str, 'UTC').label('timezone_str')
+            # Uptime last hour
+            func.sum(
+                case(
+                    (text(
+                        "status = 'active' AND "
+                        "timestamp_utc >= :start_time_hour AND "
+                        "EXTRACT(HOUR FROM timestamp_utc AT TIME ZONE COALESCE(timezone_str, 'UTC')) BETWEEN "
+                        "EXTRACT(HOUR FROM start_time_local) AND EXTRACT(HOUR FROM end_time_local)"
+                    ), 1),
+                    else_=0)
+                ).label('uptime_last_hour'),
+            # Downtime last hour
+            func.sum(
+                case(
+                    (text(
+                        "status = 'inactive' AND "
+                        "timestamp_utc >= :start_time_hour AND "
+                        "EXTRACT(HOUR FROM timestamp_utc AT TIME ZONE COALESCE(timezone_str, 'UTC')) BETWEEN "
+                        "EXTRACT(HOUR FROM start_time_local) AND EXTRACT(HOUR FROM end_time_local)"
+                    ), 1),
+                    else_=0)
+                ).label('downtime_last_hour'),
+
+            # Uptime last day
+            func.sum(
+                case(
+                    (text(
+                        "status = 'active' AND "
+                        "timestamp_utc >= :start_time_day AND "
+                        "EXTRACT(HOUR FROM timestamp_utc AT TIME ZONE COALESCE(timezone_str, 'UTC')) BETWEEN "
+                        "EXTRACT(HOUR FROM start_time_local) AND EXTRACT(HOUR FROM end_time_local)"
+                    ), 1),
+                    else_=0)
+                ).label('uptime_last_day'),
+            # Downtime last day
+            func.sum(
+                case(
+                    (text(
+                        "status = 'inactive' AND "
+                        "timestamp_utc >= :start_time_day AND "
+                        "EXTRACT(HOUR FROM timestamp_utc AT TIME ZONE COALESCE(timezone_str, 'UTC')) BETWEEN "
+                        "EXTRACT(HOUR FROM start_time_local) AND EXTRACT(HOUR FROM end_time_local)"
+                    ), 1),
+                    else_=0
+                ).label('downtime_last_day')
+            )
         ).select_from(
             store_status
             .join(store_hours, store_status.c.store_id == store_hours.c.store_id)
             .outerjoin(store_timezone, store_status.c.store_id == store_timezone.c.store_id)
-        ).where(
-            store_status.c.status == 'inactive'
-        ).limit(10000)
+        ).group_by(
+            store_status.c.store_id
+        ).params(
+            start_time_hour=start_time_hour,
+            start_time_day=start_time_day
+        )
+
+
         print("records")
         result = await session.stream(stmt) 
         async for batch in result.yield_per(100):  # Controls how many records are fetched per batch
             try:
                 try:
-                    store_id = batch.store_id  # Make sure this is correct based on your model or result structure
-                except AttributeError as e:
-                    print(f"Error accessing data: {e}")             
-                timezone_str = batch.timezone_str if batch.timezone_str else 'UTC'  # Use UTC if None
+                    print(batch,"batch")
+                    store_id = batch[0]  # Access by key as it comes from SQL query
+                    uptime_hours_last_hour = batch[1]
+                    downtime_hours_last_hour = batch[2]
+                    uptime_hours_last_day = batch[3]
+                    downtime_hours_last_day = batch[4]
+                except KeyError as e:
+                    print(f"Error accessing data for a field: {e}")
+                    return  # Early return if critical data is missing
 
-                timezone = pytz.timezone(timezone_str)
-                # Since timestamp_utc is already a datetime object, no need to parse it
-                timestamp_utc = batch.timestamp_utc
-                if timestamp_utc.tzinfo is None:
-                    timestamp_utc = pytz.utc.localize(timestamp_utc)  # Localize only if it's naive
-                print(timestamp_utc)
+                # Initialize or update report data for the store
+                if store_id not in report_data:
+                    report_data[store_id] = {
+                        'uptime_last_hour': 0, 'downtime_last_hour': 0,
+                        'uptime_last_day': 0, 'downtime_last_day': 0
+                    }
 
-                # Handling time parsing directly
-                start_time_local = batch.start_time_local
-                end_time_local = batch.end_time_local
-
-                # Calculating local times
-                timestamp_local = timestamp_utc.astimezone(timezone)
-                business_start = datetime.combine(timestamp_local.date(), start_time_local)
-                business_end = datetime.combine(timestamp_local.date(), end_time_local)
-
-                # Localize these times to the same timezone as timestamp_local
-                business_start = timezone.localize(business_start)
-                business_end = timezone.localize(business_end)
-
-                print(f"Business hours for store {store_id}: start at {business_start}, end at {business_end}")
-
-                # Check if the timestamp is within business hours
-                if business_start <= timestamp_local <= business_end:
-                    print('This time is within business hours.')
-                    # Initialize report data for the store if not already done
-                    if store_id not in report_data:
-                        report_data[store_id] = {'uptime': 0, 'downtime': 0}
-                    business_start = ensure_timezone(business_start, timezone)
-                    current_time = ensure_timezone(current_time, timezone)
-
-                    hours_difference = calculate_time_difference(business_start, current_time)
-                    status_key = 'uptime' if batch.status == 'active' else 'downtime'
-                    print(hours_difference,"hours_difference")
-                    report_data[store_id][status_key] += hours_difference
-
-                else:
-                    print('This time is outside business hours.')
+                report_data[store_id]['uptime_last_hour'] += uptime_hours_last_hour
+                report_data[store_id]['downtime_last_hour'] += downtime_hours_last_hour
+                report_data[store_id]['uptime_last_day'] += uptime_hours_last_day
+                report_data[store_id]['downtime_last_day'] += downtime_hours_last_day
 
             except Exception as e:
                 print(f"Error processing record for store {store_id}: {e}")
