@@ -99,7 +99,7 @@ async def generate_report(session, report_id):
     try:
         start_time_hour = current_utc - timedelta(hours=1)
         start_time_day = current_utc - timedelta(days=1)
-
+        start_time_week = current_utc - timedelta(weeks=1)
         stmt = select(
             store_status.c.store_id,
             # Uptime last hour
@@ -147,6 +147,28 @@ async def generate_report(session, report_id):
                     ), 1),
                     else_=0
                 ).label('downtime_last_day')
+            ),
+            func.sum(
+                case(
+                    (text(
+                        "status = 'active' AND "
+                        "timestamp_utc >= :start_time_week AND "
+                        "EXTRACT(HOUR FROM timestamp_utc AT TIME ZONE COALESCE(timezone_str, 'UTC')) BETWEEN "
+                        "EXTRACT(HOUR FROM start_time_local) AND EXTRACT(HOUR FROM end_time_local)"
+                    ), 1),
+                    else_=0
+                ).label('uptime_last_week')
+            ),
+            func.sum(
+                case(
+                    (text(
+                        "status = 'inactive' AND "
+                        "timestamp_utc >= :start_time_week AND "
+                        "EXTRACT(HOUR FROM timestamp_utc AT TIME ZONE COALESCE(timezone_str, 'UTC')) BETWEEN "
+                        "EXTRACT(HOUR FROM start_time_local) AND EXTRACT(HOUR FROM end_time_local)"
+                    ), 1),
+                    else_=0
+                ).label('downtime_last_week')
             )
         ).select_from(
             store_status
@@ -154,9 +176,10 @@ async def generate_report(session, report_id):
             .outerjoin(store_timezone, store_status.c.store_id == store_timezone.c.store_id)
         ).group_by(
             store_status.c.store_id
-        ).params(
+        ).limit(100).params(
             start_time_hour=start_time_hour,
-            start_time_day=start_time_day
+            start_time_day=start_time_day,
+            start_time_week=start_time_week
         )
 
 
@@ -171,6 +194,8 @@ async def generate_report(session, report_id):
                     downtime_hours_last_hour = batch[2]
                     uptime_hours_last_day = batch[3]
                     downtime_hours_last_day = batch[4]
+                    uptime_last_week = batch[4]
+                    downtime_last_week = batch[4]
                 except KeyError as e:
                     print(f"Error accessing data for a field: {e}")
                     return  # Early return if critical data is missing
@@ -179,13 +204,16 @@ async def generate_report(session, report_id):
                 if store_id not in report_data:
                     report_data[store_id] = {
                         'uptime_last_hour': 0, 'downtime_last_hour': 0,
-                        'uptime_last_day': 0, 'downtime_last_day': 0
+                        'uptime_last_day': 0, 'downtime_last_day': 0,
+                        'uptime_last_week': 0, 'downtime_last_week': 0
                     }
 
                 report_data[store_id]['uptime_last_hour'] += uptime_hours_last_hour
                 report_data[store_id]['downtime_last_hour'] += downtime_hours_last_hour
-                report_data[store_id]['uptime_last_day'] += uptime_hours_last_day
-                report_data[store_id]['downtime_last_day'] += downtime_hours_last_day
+                report_data[store_id]['uptime_last_day'] += uptime_hours_last_day/60
+                report_data[store_id]['downtime_last_day'] += downtime_hours_last_day/60
+                report_data[store_id]['uptime_last_day'] += uptime_last_week/60
+                report_data[store_id]['downtime_last_week'] += downtime_last_week/60
 
             except Exception as e:
                 print(f"Error processing record for store {store_id}: {e}")
