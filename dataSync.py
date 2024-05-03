@@ -33,6 +33,6 @@ def load_csv_to_db(csv_file_path,table_name,index_file_path ):
         chunk.to_sql(table_name, con=engine, if_exists='append', index=False)
         # Update the last processed line
         start_line += len(chunk)
-        write_last_processed_line(index_file_path, start_line)
+    write_last_processed_line(index_file_path, start_line)
 
 # Call the function for each CSV file and respective table name
