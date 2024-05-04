@@ -60,7 +60,7 @@ async def process_hours(current_utc, report_data):
     )).order_by(
         store_status.c.store_id.asc(),
         store_status.c.timestamp_utc.asc()
-    ).limit(100)
+    )
     
     async with SessionLocal() as session:
         hour_result = await session.stream(stmt_hours)
@@ -96,7 +96,7 @@ async def process_day(current_utc,report_data):
     )).order_by(
         store_status.c.store_id.asc(),
         store_status.c.timestamp_utc.asc()
-    ).limit(100)
+    )
 
     async with SessionLocal() as session:
         days_result = await session.stream(stmt_days)
@@ -132,7 +132,7 @@ async def process_weeks(current_utc,report_data):
     )).order_by(
         store_status.c.store_id.asc(),
         store_status.c.timestamp_utc.asc()
-    ).limit(100)
+    )
     async with SessionLocal() as session:
         weeks_result = await session.stream(stmt_weeks)
         async for batch in weeks_result.yield_per(100):
