@@ -123,7 +123,7 @@ The output for the application includes detailed uptime and downtime metrics for
   * Method: GET
   * Success Response:
   * Code: 200
-  * Content: JSON array of reports with uptime and downtime calculations for the last hour, day, and week.
+  * Content: JSON objects containing data of reports with uptime and downtime calculations for the last hour, day, and week.
 * Post Report
   * URL: /reporting/trigger_report/
   * Method: POST
