@@ -141,6 +141,12 @@ The output for the application includes detailed uptime and downtime metrics for
   * Success Response:
   * Code: 200
   * Content: JSON objects containing data of reports with uptime and downtime calculations for the last hour, day, and week.
+* Ping
+  * URL: /basic/ping 
+  * Method: GET
+  * Success Response:
+  * Code: 200
+  * Content: Pong
 * Post Report
   * URL: /reporting/trigger_report/
   * Method: POST
