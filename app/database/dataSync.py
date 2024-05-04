@@ -1,9 +1,8 @@
 import pandas as pd
-from app.dependencies import DATABASE_URL
 from sqlalchemy import create_engine
 import json
 import os
-
+DATABASE_URL = "postgresql://storageData:storageData@localhost:5432/storageData"
 sync_engine = create_engine(DATABASE_URL)  # Ensure this is your actual database URL
 
 def read_last_processed_line(file_path, key):
