@@ -74,8 +74,6 @@ The system is designed to handle large volumes of data by periodically ingesting
 - **Scheduled Jobs**: Using APScheduler, the system schedules data ingestion tasks to run hourly. Each job is specifically tailored to update its designated CSV file and database table, ensuring the latest data is always available.
 - **Immediate Execution on Startup**: The jobs are configured to start processing immediately upon system startup, guaranteeing that data feeds are always current and reflect the most recent updates
 
-* During the specified business hours, the system calculates uptime and downtime based on the status changes observed in the polls.
-
 ## Database Choice
 PostgreSQL was chosen for its robust handling of time-based data and excellent support for complex queries, which are essential for the time zone conversions and the dynamic querying needed by this application.
 
