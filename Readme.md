@@ -21,7 +21,7 @@ Python 3.8+
 PostgreSQL
 FastAPI
 Uvicorn (for serving the API)
-
+```
 # Setup Instructions
 Clone the Repository
 ```bash
