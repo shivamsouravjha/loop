@@ -95,7 +95,7 @@ This project addresses the challenge of calculating uptime and downtime across d
   - The initial and final statuses within each batch are crucial for accurate reporting. The system calculates the duration from the first observed status in a period until the last, and if the status changes, it records the time spent in each state.
   - For periods without any data points (e.g., no operational data for an early morning hour), the system extrapolates based on the last known status. This means if a store was last seen active and no data points contradict this, it remains 'active' until proven otherwise.
 
-## Data Output Requirement
+### Data Output Requirement
 
 The output for the application includes detailed uptime and downtime metrics for each store, calculated as follows:
 
@@ -105,12 +105,12 @@ The output for the application includes detailed uptime and downtime metrics for
 - **Interpolation of Data**:
   - To address gaps in data, where polls might not cover every minute within business hours, the system uses interpolation based on available data points to estimate uptime and downtime.
 
-## PostgreSQL Usage
+### PostgreSQL Usage
 
 - **Database Choice**:
   - PostgreSQL is used due to its robust support for complex queries, reliability in handling time-series data, and capabilities in managing large datasets efficiently. The use of SQL also simplifies the implementation of timezone conversions and time-range checks within queries.
 
-## Last Read Optimization
+### Last Read Optimization
 
 - **Efficient Data Ingestion**:
   - The system tracks the last line read from each CSV file to ensure that only new data is processed. This prevents the duplication of records and ensures that the database is always up to date without reprocessing the same data.
