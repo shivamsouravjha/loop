@@ -3,9 +3,9 @@ from app.api.routers import api_router
 from app.services.dataUpload import startup_event
 app = FastAPI(title="Availability Manager")
 
-@app.on_event("startup")
-async def eventHandler():
+async def start_app() -> None:
     print("Starting up...")
     startup_event()
 
+app.add_event_handler("startup", start_app)
 app.include_router(api_router)
