@@ -155,3 +155,8 @@ The output for the application includes detailed uptime and downtime metrics for
   * Content: report_id (random string) will be used for polling the status of report completion
 
 
+### Video of the above snippet
+
+https://github.com/shivamsouravjha/loop/assets/60891544/2412e2c0-73bc-473b-bd92-a863ac900523
+
+
