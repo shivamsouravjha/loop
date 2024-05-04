@@ -23,7 +23,6 @@ async def process_batch(batch, report_data,prev_timestamps,prev_statuses,uptime_
                 prev_statuses[store_id] = status  # No previous status at the start
 
             duration = abs((timestamp_utc - prev_timestamps[store_id]).total_seconds()) / result_unit  # Convert to hours
-            print(duration,timestamp_utc, prev_timestamps[store_id])
             if prev_statuses[store_id] == 'active':
                     report_data[store_id][uptime_key] += duration
             elif prev_statuses[store_id] == 'inactive':

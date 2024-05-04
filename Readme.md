@@ -30,6 +30,8 @@ cd loop
 ```
 ### Install Dependencies
 ```bash
+python3 -m venv myenv
+source myenv/bin/activate
 pip install -r requirements.txt
 ```
 ### Initialize the Database
