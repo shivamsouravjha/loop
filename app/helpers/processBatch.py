@@ -6,7 +6,6 @@ lock = Lock()
 async def process_batch(batch, report_data,prev_timestamp_week,prev_status_week,uptime,downtime):
     async with lock:
             store_id, status, timestamp_utc = batch[0], batch[1], batch[2]
-            print(store_id,status,timestamp_utc)
             timestamp_utc = timestamp_utc.replace(tzinfo=timezone.utc)
 
             if store_id not in report_data:
