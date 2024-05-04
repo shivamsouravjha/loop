@@ -59,7 +59,21 @@ uvicorn app.main:app --reload
 * A custom logic ensures that only new data entries since the last poll are imported, avoiding duplicates. This is tracked using a file that records the last read line of each CSV (dataread.txt).
 
 ## Data Processing
-* Timestamps from CSVs are converted from UTC to the respective local time zones of the stores to align the polls with business hours.
+
+### Efficient Data Ingestion
+
+The system is designed to handle large volumes of data by periodically ingesting updates from CSV files. Here's how it ensures efficiency and accuracy:
+
+- **Read Last Processed Line**: To avoid reprocessing data, the system reads a JSON file (`data_upload_check.txt`) that records the last processed line for each data type (store status, business hours, and time zone). This mechanism ensures that each hourly data ingestion starts right where the last one ended.
+
+- **Batch Processing**: Data is ingested in chunks, allowing the system to manage memory effectively and improve performance. Each batch of new entries is appended to the respective tables in the PostgreSQL database.
+
+- **Update Last Processed Line**: After processing each chunk, the system updates the JSON file with the latest line number that was processed. This step is crucial for maintaining data integrity and ensuring that subsequent data reads are accurate.
+
+### Time-Sensitive Scheduling
+- **Scheduled Jobs**: Using APScheduler, the system schedules data ingestion tasks to run hourly. Each job is specifically tailored to update its designated CSV file and database table, ensuring the latest data is always available.
+- **Immediate Execution on Startup**: The jobs are configured to start processing immediately upon system startup, guaranteeing that data feeds are always current and reflect the most recent updates
+
 * During the specified business hours, the system calculates uptime and downtime based on the status changes observed in the polls.
 
 ## Database Choice
