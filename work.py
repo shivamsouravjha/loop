@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from typing import List, Optional
-from datetime import datetime, time
+from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy import select, func, and_, exists
 from sqlalchemy.sql import extract
@@ -29,7 +28,6 @@ from sqlalchemy import cast, TIMESTAMP
 from createDB import store_timezone, store_hours, store_status, store_reports
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select, func, Time
-import pytz
 app = FastAPI()
 DATABASE_URL = "postgresql+asyncpg://storageData:storageData@localhost:5432/storageData"
 engine = create_async_engine(DATABASE_URL, echo=True)
@@ -40,9 +38,6 @@ SessionLocal = sessionmaker(
     class_=AsyncSession
 )
 
-class Downtime(BaseModel):
-    start: datetime
-    end: datetime
 def job_listener(event):
     if event.exception:
         logging.error('The job crashed :(')
@@ -129,7 +124,7 @@ async def generate_report(session, report_id):
             exists(subquery)  # Use the EXISTS clause here
         )).order_by(
             store_status.c.store_id.asc()
-        )
+        ).limit(100)
         stmt_days  = select(
             store_status.c.store_id,
             store_status.c.status,
@@ -143,7 +138,7 @@ async def generate_report(session, report_id):
             exists(subquery)  # Use the EXISTS clause here
         )).order_by(
             store_status.c.store_id.asc()
-        )
+        ).limit(100)
         stmt_weeks = select(
             store_status.c.store_id,
             store_status.c.status,
@@ -157,7 +152,7 @@ async def generate_report(session, report_id):
             exists(subquery)  # Use the EXISTS clause here
         )).order_by(
             store_status.c.store_id.asc()
-        )
+        ).limit(100)
 
 
         print("records")
@@ -173,41 +168,32 @@ async def generate_report(session, report_id):
 
                     if store_id not in report_data:
                         report_data[store_id] = {
-                            'uptime_last_hour': timedelta(0),
-                            'downtime_last_hour': timedelta(0)
+                            'uptime_last_hour': 0,
+                            'downtime_last_hour': 0
                         }
                     
                     if store_id in prev_timestamp:
                         # Calculate the duration from the last timestamp to the current one
-                        duration = timestamp_utc - prev_timestamp[store_id]
-
+                        duration = abs((prev_timestamp[store_id] - timestamp_utc).total_seconds() / 60)
+                        print(duration)
                         # Check previous status and add the duration to the correct total
                         if prev_status[store_id] == 'active':
                             report_data[store_id]['uptime_last_hour'] += duration
                         elif prev_status[store_id] == 'inactive':
-                            report_data[store_id]['downtime_last_hour'] += duration
+                            report_data[store_id]['downtime_last_hour'] += (-duration)
 
                     # Update the previous timestamp and status for this store_id
                     prev_timestamp[store_id] = timestamp_utc
                     prev_status[store_id] = status
-                    
-                    # Handle the final interval for each store_id
-                    # for store_id in prev_timestamp:
-                    #     current_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
-                    #     final_duration = current_utc - prev_timestamp[store_id]
-                    #     if prev_status[store_id] == 'active':
-                    #         report_data[store_id]['uptime_last_hour'] += final_duration
-                    #     elif prev_status[store_id] == 'inactive':
-                    #         report_data[store_id]['downtime_last_hour'] += final_duration
 
                 except Exception as e:
                     print(f"Error processing record for store {store_id}: {e}")
-            day_result = await session.stream(stmt_hours) 
+            day_result = await session.stream(stmt_days) 
             async for batch in day_result.yield_per(100):  # Controls how many records are fetched per batch
                 try:
                     store_id, status, timestamp_utc = batch[0], batch[1], batch[2]
                     print(store_id,status,timestamp_utc)
-                    timestamp_utc = timestamp_utc.replace(tzinfo=timezone.utc)
+                    # timestamp_utc = timestamp_utc.replace(tzinfo=timezone.utc)
 
                     if store_id not in report_data:
                         report_data[store_id] = {
@@ -218,6 +204,8 @@ async def generate_report(session, report_id):
                     if store_id in prev_timestamp:
                         # Calculate the duration from the last timestamp to the current one
                         duration = timestamp_utc - prev_timestamp[store_id]
+                        duration = abs((prev_timestamp[store_id] - timestamp_utc).total_seconds() / 3600)
+                        print(duration)
 
                         # Check previous status and add the duration to the correct total
                         if prev_status[store_id] == 'active':
@@ -225,22 +213,9 @@ async def generate_report(session, report_id):
                         elif prev_status[store_id] == 'inactive':
                             report_data[store_id]['downtime_last_day'] += duration
 
-                    # Update the previous timestamp and status for this store_id
-                    prev_timestamp[store_id] = timestamp_utc
-                    prev_status[store_id] = status
-                    
-                    # Handle the final interval for each store_id
-                    # for store_id in prev_timestamp:
-                    #     current_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
-                    #     final_duration = current_utc - prev_timestamp[store_id]
-                    #     if prev_status[store_id] == 'active':
-                    #         report_data[store_id]['uptime_last_hour'] += final_duration
-                    #     elif prev_status[store_id] == 'inactive':
-                    #         report_data[store_id]['downtime_last_hour'] += final_duration
-
                 except Exception as e:
                     print(f"Error processing record for store {store_id}: {e}")
-            week_result = await session.stream(stmt_hours) 
+            week_result = await session.stream(stmt_weeks) 
             async for batch in week_result.yield_per(100):  # Controls how many records are fetched per batch
                 try:
                     store_id, status, timestamp_utc = batch[0], batch[1], batch[2]
@@ -256,25 +231,15 @@ async def generate_report(session, report_id):
                     if store_id in prev_timestamp:
                         # Calculate the duration from the last timestamp to the current one
                         duration = timestamp_utc - prev_timestamp[store_id]
+                        duration = abs((prev_timestamp[store_id] - timestamp_utc).total_seconds() / 3600)
+                        print(duration)
+
 
                         # Check previous status and add the duration to the correct total
                         if prev_status[store_id] == 'active':
                             report_data[store_id]['uptime_last_week'] += duration
                         elif prev_status[store_id] == 'inactive':
                             report_data[store_id]['downtime_last_week'] += duration
-
-                    # Update the previous timestamp and status for this store_id
-                    prev_timestamp[store_id] = timestamp_utc
-                    prev_status[store_id] = status
-                    
-                    # Handle the final interval for each store_id
-                    # for store_id in prev_timestamp:
-                    #     current_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
-                    #     final_duration = current_utc - prev_timestamp[store_id]
-                    #     if prev_status[store_id] == 'active':
-                    #         report_data[store_id]['uptime_last_hour'] += final_duration
-                    #     elif prev_status[store_id] == 'inactive':
-                    #         report_data[store_id]['downtime_last_hour'] += final_duration
 
                 except Exception as e:
                     print(f"Error processing record for store {store_id}: {e}")
@@ -284,18 +249,6 @@ async def generate_report(session, report_id):
         await session.rollback()
     else:
         await session.commit()
-    # result = await session.execute(stmt_hours)
-    # records = result.fetchall()
-    # print(records)
-    # Step 2: Process records to calculate uptime/downtime
-    for store_id in prev_timestamp:
-        current_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
-        final_duration = current_utc - prev_timestamp[store_id]
-        if prev_status[store_id] == 'active':
-            report_data[store_id]['uptime_last_hour'] += final_duration
-        elif prev_status[store_id] == 'inactive':
-            report_data[store_id]['downtime_last_hour'] += final_duration
-
 
     print(report_data,"report_data")
     async with session.begin():
