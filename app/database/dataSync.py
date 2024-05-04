@@ -1,11 +1,8 @@
 import pandas as pd
+from app.dependencies import DATABASE_URL
 from sqlalchemy import create_engine
 
-# Database connection details
-DATABASE_URL = "postgresql://storageData:storageData@localhost:5432/storageData"
-
-# Create a database engine
-engine = create_engine(DATABASE_URL)
+sync_engine = create_engine("postgresql://storageData:storageData@localhost:5432/storageData")
 
 
 def read_last_processed_line(file_path):
@@ -30,9 +27,9 @@ def load_csv_to_db(csv_file_path,table_name,index_file_path ):
     chunk_size = 10000  # Size of each chunk
     start_line = read_last_processed_line(index_file_path)
     for chunk in pd.read_csv(csv_file_path, skiprows=range(1, start_line + 1), chunksize=chunk_size):
-        chunk.to_sql(table_name, con=engine, if_exists='append', index=False)
+        if not chunk.empty:
+            chunk.to_sql(table_name, con=sync_engine, if_exists='append', index=False)
         # Update the last processed line
+        print(chunk)
         start_line += len(chunk)
     write_last_processed_line(index_file_path, start_line)
-
-# Call the function for each CSV file and respective table name

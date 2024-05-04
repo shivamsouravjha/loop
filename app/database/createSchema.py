@@ -1,8 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Time, Text,BigInteger, TIMESTAMP, ForeignKey, MetaData, Table
-from sqlalchemy.sql.schema import ForeignKeyConstraint
+from sqlalchemy import create_engine, Column, Integer, String, Time, Text,BigInteger, TIMESTAMP, MetaData, Table
 from sqlalchemy.dialects.postgresql import UUID
 
-# Database connection details
 DATABASE_URL = "postgresql://storageData:storageData@localhost:5432/storageData"
 engine = create_engine(DATABASE_URL)
 metadata = MetaData()
@@ -32,6 +30,5 @@ store_reports = Table('store_reports', metadata,
     Column('data', Text),  # Text field for storing report data
     Column('created_at', TIMESTAMP, default='now()'),  # Timestamp with default value
 )
-
 # Create the tables in the database
 metadata.create_all(engine)
