@@ -6,6 +6,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.dependencies import SessionLocal
 from app.helpers.processBatch import process_batch
 import asyncio
+from pytz import utc
+
 async def generate_report(session, report_id):
     current_utc_str = "2023-01-19 15:28:46.983397"
     current_utc = datetime.strptime(current_utc_str, "%Y-%m-%d %H:%M:%S.%f")
@@ -65,7 +67,8 @@ async def process_hours(current_utc, report_data):
     async with SessionLocal() as session:
         hour_result = await session.stream(stmt_hours)
         async for batch in hour_result.yield_per(100):
-            await process_batch(batch,report_data,prev_timestamp_hour,prev_status_hour,'uptime_last_hour','downtime_last_hour')
+            await process_batch(batch,report_data,prev_timestamp_hour,prev_status_hour,'uptime_last_hour','downtime_last_hour',start_time_hour,60)
+        await finalize_durations(report_data, prev_timestamp_hour, prev_status_hour, 'uptime_last_hour', 'downtime_last_hour', current_utc,60)
 
 
 
@@ -101,7 +104,8 @@ async def process_day(current_utc,report_data):
     async with SessionLocal() as session:
         days_result = await session.stream(stmt_days)
         async for batch in days_result.yield_per(100):
-            await process_batch(batch,report_data,prev_timestamp_day,prev_status_day,'uptime_last_day','downtime_last_day')
+            await process_batch(batch,report_data,prev_timestamp_day,prev_status_day,'uptime_last_day','downtime_last_day',start_time_day,3600)
+        await finalize_durations(report_data, prev_timestamp_day, prev_status_day, 'uptime_last_day', 'downtime_last_day', current_utc,3600)
 
 
 
@@ -136,7 +140,8 @@ async def process_weeks(current_utc,report_data):
     async with SessionLocal() as session:
         weeks_result = await session.stream(stmt_weeks)
         async for batch in weeks_result.yield_per(100):
-            await process_batch(batch,report_data,prev_timestamp_week,prev_status_week,'uptime_last_week','downtime_last_week')
+            await process_batch(batch,report_data,prev_timestamp_week,prev_status_week,'uptime_last_week','downtime_last_week',start_time_week,3600)
+        await finalize_durations(report_data, prev_timestamp_week, prev_status_week, 'uptime_last_week', 'downtime_last_week', current_utc,3600)
 
 def merge_reports(hourly_data, daily_data, weekly_data):
     # Initialize the final report dictionary
@@ -172,3 +177,18 @@ def merge_reports(hourly_data, daily_data, weekly_data):
             final_report[store_id]['downtime_last_week'] = weekly_data[store_id].get('downtime_last_week', 0)
 
     return final_report
+
+async def finalize_durations(report_data, prev_timestamps, prev_statuses, uptime_key, downtime_key, current_utc, unit_time):
+    for store_id in prev_timestamps:
+        # Ensure both datetimes are offset-aware
+        if prev_timestamps[store_id].tzinfo is None:
+            prev_timestamps[store_id] = utc.localize(prev_timestamps[store_id])
+        if current_utc.tzinfo is None:
+            current_utc = utc.localize(current_utc)
+
+        # Now perform the subtraction
+        final_duration = abs((current_utc - prev_timestamps[store_id]).total_seconds() / unit_time)
+        if prev_statuses[store_id] == 'active':
+            report_data[store_id][uptime_key] += final_duration
+        elif prev_statuses[store_id] == 'inactive':
+            report_data[store_id][downtime_key] += final_duration
