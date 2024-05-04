@@ -44,6 +44,11 @@ docker-compose up -d
 python3 app/database/createSchema.py
 ```
 
+### Dump the csv data in Data folder 
+* store_timezone.csv
+* store_hours.csv
+* store_status.csv
+
 Start the Application
 ```bash
 uvicorn app.main:app --reload
