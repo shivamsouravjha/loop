@@ -40,12 +40,13 @@ async def generate_report(session, report_id):
     await session.commit()
 
 def create_subquery():
+    local_time = func.timezone(store_timezone.c.timezone_str, store_status.c.timestamp_utc)
     return (
         select(1)
         .where(and_(
             store_hours.c.store_id == store_status.c.store_id,
-            extract('hour', func.cast(store_status.c.timestamp_utc, Time)) >= extract('hour', store_hours.c.start_time_local),
-            extract('hour', func.cast(store_status.c.timestamp_utc, Time)) <= extract('hour', store_hours.c.end_time_local)
+            extract('hour', local_time) >= extract('hour', store_hours.c.start_time_local),
+            extract('hour', local_time) <= extract('hour', store_hours.c.end_time_local)
         ))
         .correlate(store_status)
     )
