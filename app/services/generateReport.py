@@ -7,10 +7,14 @@ from app.dependencies import SessionLocal
 from app.helpers.processBatch import process_batch
 import asyncio
 from pytz import utc
+from datetime import datetime, timezone
 
 async def generate_report(session, report_id):
     current_utc_str = "2023-01-19 15:28:46.983397"
     current_utc = datetime.strptime(current_utc_str, "%Y-%m-%d %H:%M:%S.%f")
+
+    # current_utc = datetime.now(timezone.utc) [uncomment to fetch for current timestamp]
+
     report_data = {}
     try:
         report_data_hour= {}
@@ -35,11 +39,8 @@ async def generate_report(session, report_id):
         await session.execute(stmt_hours, {'data': str(report_data), 'report_id': report_id})
     await session.commit()
 
-async def process_hours(current_utc, report_data):
-    start_time_hour = current_utc - timedelta(hours=1)
-    prev_timestamp_hour = {}
-    prev_status_hour = {}
-    subquery = (
+def create_subquery():
+    return (
         select(1)
         .where(and_(
             store_hours.c.store_id == store_status.c.store_id,
@@ -48,6 +49,12 @@ async def process_hours(current_utc, report_data):
         ))
         .correlate(store_status)
     )
+
+async def process_hours(current_utc, report_data):
+    start_time_hour = current_utc - timedelta(hours=1)
+    prev_timestamp_hour = {}
+    prev_status_hour = {}
+    subquery = create_subquery()
     stmt_hours = select(
         store_status.c.store_id,
         store_status.c.status,
@@ -76,15 +83,8 @@ async def process_day(current_utc,report_data):
     start_time_day = current_utc - timedelta(days=1)
     prev_timestamp_day = {}
     prev_status_day = {}
-    subquery = (
-        select(1)
-        .where(and_(
-            store_hours.c.store_id == store_status.c.store_id,
-            extract('hour', func.cast(store_status.c.timestamp_utc, Time)) >= extract('hour', store_hours.c.start_time_local),
-            extract('hour', func.cast(store_status.c.timestamp_utc, Time)) <= extract('hour', store_hours.c.end_time_local)
-        ))
-        .correlate(store_status)
-    )
+    subquery = create_subquery()
+
     stmt_days  = select(
         store_status.c.store_id,
         store_status.c.status,
@@ -113,15 +113,8 @@ async def process_weeks(current_utc,report_data):
     start_time_week = current_utc - timedelta(weeks=1)
     prev_timestamp_week = {}
     prev_status_week = {}
-    subquery = (
-        select(1)
-        .where(and_(
-            store_hours.c.store_id == store_status.c.store_id,
-            extract('hour', func.cast(store_status.c.timestamp_utc, Time)) >= extract('hour', store_hours.c.start_time_local),
-            extract('hour', func.cast(store_status.c.timestamp_utc, Time)) <= extract('hour', store_hours.c.end_time_local)
-        ))
-        .correlate(store_status)
-    )
+    subquery = create_subquery()
+
     stmt_weeks = select(
         store_status.c.store_id,
         store_status.c.status,

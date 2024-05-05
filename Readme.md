@@ -154,6 +154,7 @@ The output for the application includes detailed uptime and downtime metrics for
   * Code: 200
   * Content: report_id (random string) will be used for polling the status of report completion
 
+* Note: Since the data is of year 2023, the current generate report is hardcoded to a random date in 2023, you can update it to current date by commenting line 13-14 and uncommenting line 16 in generateReport.py
 
 ### Video of the above snippet
 
