@@ -88,7 +88,7 @@ async def process_hours(current_utc, report_data):
     )
     async with SessionLocal() as session:
         hour_result = await session.stream(stmt_hours)
-        async for batch in hour_result.yield_per(100):
+        async for batch in hour_result.yield_per(10):
             await process_batch(batch,report_data,prev_timestamp_hour,prev_status_hour,'uptime_last_hour','downtime_last_hour',start_time_local,60)
         await finalize_durations(report_data, prev_timestamp_hour, prev_status_hour, 'uptime_last_hour', 'downtime_last_hour', current_time_local,60)
 
@@ -118,7 +118,7 @@ async def process_day(current_utc,report_data):
 
     async with SessionLocal() as session:
         days_result = await session.stream(stmt_days)
-        async for batch in days_result.yield_per(100):
+        async for batch in days_result.yield_per(10):
             await process_batch(batch,report_data,prev_timestamp_day,prev_status_day,'uptime_last_day','downtime_last_day',start_time_day,3600)
         await finalize_durations(report_data, prev_timestamp_day, prev_status_day, 'uptime_last_day', 'downtime_last_day', current_utc,3600)
 
@@ -147,7 +147,7 @@ async def process_weeks(current_utc,report_data):
     )
     async with SessionLocal() as session:
         weeks_result = await session.stream(stmt_weeks)
-        async for batch in weeks_result.yield_per(100):
+        async for batch in weeks_result.yield_per(10):
             await process_batch(batch,report_data,prev_timestamp_week,prev_status_week,'uptime_last_week','downtime_last_week',start_time_week,3600)
         await finalize_durations(report_data, prev_timestamp_week, prev_status_week, 'uptime_last_week', 'downtime_last_week', current_utc,3600)
 
