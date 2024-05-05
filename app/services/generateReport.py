@@ -1,7 +1,7 @@
 from sqlalchemy import select, func, and_, Time, exists, text
 from datetime import datetime, timedelta
 from app.database.createSchema import store_hours, store_status,store_timezone
-from sqlalchemy.sql import extract
+from sqlalchemy.sql import extract, literal, cast
 from sqlalchemy.exc import SQLAlchemyError
 from app.dependencies import SessionLocal
 from app.helpers.processBatch import process_batch
@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 async def generate_report(session, report_id):
     current_utc_str = "2023-01-19 15:28:46.983397"
     current_utc = datetime.strptime(current_utc_str, "%Y-%m-%d %H:%M:%S.%f")
-
+    print(current_utc,"curret")
     # current_utc = datetime.now(timezone.utc) [uncomment to fetch for current timestamp]
 
     report_data = {}
@@ -39,23 +39,36 @@ async def generate_report(session, report_id):
         await session.execute(stmt_hours, {'data': str(report_data), 'report_id': report_id})
     await session.commit()
 
-def create_subquery():
-    local_time = func.timezone(store_timezone.c.timezone_str, store_status.c.timestamp_utc)
+def create_subquery(time_frame, start_time,current_utc):
+    default_timezone_str = literal("America/Chicago")  # Default timezone if not specified
+    timezone_str = func.coalesce(store_timezone.c.timezone_str, default_timezone_str)
+    local_time = func.timezone(timezone_str, store_status.c.timestamp_utc)
+    start_time_str = func.timezone(timezone_str, start_time)
+    current_time_local = func.timezone(timezone_str,current_utc)
+
+    local_time_casted = cast(func.date_trunc('minute', local_time), Time)
+    adjusted_dow = (extract('dow', local_time) + 6) % 7
+
     return (
-        select(1)
+        select(1)  
         .where(and_(
             store_hours.c.store_id == store_status.c.store_id,
-            extract('hour', local_time) >= extract('hour', store_hours.c.start_time_local),
-            extract('hour', local_time) <= extract('hour', store_hours.c.end_time_local)
+            local_time >= start_time_str,
+            local_time < current_time_local,
+            adjusted_dow == store_hours.c.day,  # Day of week check adjusted
+            local_time_casted >= cast(store_hours.c.start_time_local, Time),
+            local_time_casted <= cast(store_hours.c.end_time_local, Time)
         ))
         .correlate(store_status)
     )
+
 
 async def process_hours(current_utc, report_data):
     start_time_hour = current_utc - timedelta(hours=1)
     prev_timestamp_hour = {}
     prev_status_hour = {}
-    subquery = create_subquery()
+    subquery = create_subquery('hour',start_time_hour,current_utc)
+    print(subquery,"sbqyre")
     stmt_hours = select(
         store_status.c.store_id,
         store_status.c.status,
@@ -84,7 +97,7 @@ async def process_day(current_utc,report_data):
     start_time_day = current_utc - timedelta(days=1)
     prev_timestamp_day = {}
     prev_status_day = {}
-    subquery = create_subquery()
+    subquery = create_subquery('day',start_time_day,current_utc)
 
     stmt_days  = select(
         store_status.c.store_id,
@@ -114,7 +127,7 @@ async def process_weeks(current_utc,report_data):
     start_time_week = current_utc - timedelta(weeks=1)
     prev_timestamp_week = {}
     prev_status_week = {}
-    subquery = create_subquery()
+    subquery = create_subquery('week',start_time_week,current_utc)
 
     stmt_weeks = select(
         store_status.c.store_id,
