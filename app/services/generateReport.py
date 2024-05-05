@@ -40,23 +40,29 @@ async def generate_report(session, report_id):
     await session.commit()
 
 def create_subquery(start_time, current_time):
-    default_timezone_str = literal("America/Chicago")  # Default timezone if not specified
+    # Default timezone if not specified
+    default_timezone_str = literal("America/Chicago")
+    # Coalesce to ensure we use the store's timezone if available
     timezone_str = func.coalesce(store_timezone.c.timezone_str, default_timezone_str)
-    local_time = func.timezone(timezone_str, store_status.c.timestamp_utc)
-    start_time_str = func.timezone(timezone_str, start_time)
-    current_time_str = func.timezone(timezone_str, current_time)
 
-    local_time_casted = cast(func.date_trunc('minute', local_time), Time)
+    # Convert store_status timestamp to local time using store's timezone
+    local_time = func.timezone(timezone_str, store_status.c.timestamp_utc)
+
+    # Truncate local_time to minutes to normalize with start/end times
+    local_time_truncated = cast(func.date_trunc('minute',local_time), Time)
+
+    # Calculate day of week, adjusting for start of week considerations
     adjusted_dow = (extract('dow', local_time) + 6) % 7
+
     return (
         select(1)  
         .where(and_(
             store_hours.c.store_id == store_status.c.store_id,
-            local_time >= start_time_str,
-            local_time < current_time_str,
+            store_status.c.timestamp_utc >= start_time,
+            store_status.c.timestamp_utc < current_time,
             adjusted_dow == store_hours.c.day,  # Day of week check adjusted
-            local_time_casted >= cast(store_hours.c.start_time_local, Time),
-            local_time_casted <= cast(store_hours.c.end_time_local, Time)
+            local_time_truncated >= cast(store_hours.c.start_time_local, Time),
+            local_time_truncated <= cast(store_hours.c.end_time_local, Time)
         ))
         .correlate(store_status)
     )
