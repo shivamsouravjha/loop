@@ -107,12 +107,27 @@ This project addresses the challenge of calculating uptime and downtime across d
 
 - **Concurrent Data Processing**:
   - The application leverages Python's `asyncio` library to handle data processing for hours, days, and weeks concurrently. This is achieved using the `asyncio.gather()` function, which schedules the asynchronous execution of these tasks and waits for all of them to complete. This approach significantly speeds up the processing time as these operations can run in parallel rather than sequentially.
+## Handling Edge Cases
 
-### Handling Edge Cases
+### Start and End Time Calculations
 
-- **Start and End Time Calculations**:
-  - The initial and final statuses within each batch are crucial for accurate reporting. The system calculates the duration from the first observed status in a period until the last, and if the status changes, it records the time spent in each state.
-  - For periods without any data points (e.g., no operational data for an early morning hour), the system extrapolates based on the last known status. This means if a store was last seen active and no data points contradict this, it remains 'active' until proven otherwise.
+The system computes the duration from the first observed status in each period until the last. It's crucial to accurately record the time spent in each state when a status changes. This computation involves the following considerations:
+
+- **Initial Status in a Period**: At the start of each time period, if the first status data point is delayed (e.g., the first data comes in after 10 minutes from the period start), the system assumes the status has not changed since the period began. The duration calculation starts from the period's start time until the first data point is recorded.
+
+- **Final Status in a Period**: The duration for the last observed status continues until the end of the period unless a new status is recorded. This method ensures that the system does not underreport activity or downtime.
+
+### Gaps in Data
+
+For periods without any data points:
+
+- **Extrapolation Based on Available Data**: If there are gaps in data collection or no operational data for certain periods (e.g., early morning hours), the system extrapolates using the current known status. If a store was last observed as active and no subsequent data contradicts this status, it is assumed to remain active for the duration of the gap.
+
+This approach helps in minimizing the effects of data collection gaps on the overall accuracy of status reporting, ensuring that store operations are appropriately logged and reported.
+
+### Implementation Details
+
+The processing functions are designed to handle these scenarios gracefully, ensuring that data integrity and accuracy are maintained across all reports. The system's design allows for future adjustments and improvements in data extrapolation and gap handling methodologies.
 
 ### Data Output Requirement
 
