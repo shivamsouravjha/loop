@@ -7,13 +7,13 @@ metadata = MetaData()
 
 # Define the tables
 store_status = Table('store_status', metadata,
-    Column('store_id', BigInteger, nullable=True),  # Allow store_id to be nullable
+    Column('store_id', BigInteger, nullable=True,index=True),  # Allow store_id to be nullable
     Column('status', String(10)),
-    Column('timestamp_utc', TIMESTAMP(timezone=True)),
+    Column('timestamp_utc', TIMESTAMP(timezone=True),index=True),
 )
 
 store_hours = Table('store_hours', metadata,
-    Column('store_id', BigInteger, nullable=True),  # Allow store_id to be nullable
+    Column('store_id', BigInteger, nullable=True,index=True),  # Allow store_id to be nullable
     Column('day', Integer),
     Column('start_time_local', Time),
     Column('end_time_local', Time),
