@@ -1,4 +1,4 @@
-![Blank diagram (5)](https://github.com/shivamsouravjha/loop/assets/60891544/7ac24a01-30a9-4cf1-826a-a3e0194de6c2)![Blank diagram](https://github.com/shivamsouravjha/loop/assets/60891544/1caa39bf-59b2-495b-9055-72ba1f3302ec)# Loop Project
+# Loop Project
 
 The Loop project is designed to manage and analyze operational data from multiple stores. It leverages the FastAPI framework to serve data through a REST API and uses PostgreSQL for data storage. This system dynamically processes and reports on store activity by comparing hourly polls of store activity to their respective business hours and time zones.
 
