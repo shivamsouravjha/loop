@@ -63,15 +63,9 @@ def create_subquery(start_time, current_time):
 
 
 async def process_hours(current_utc, report_data):
-    if current_utc.tzinfo is None:
-        current_utc = current_utc.replace(tzinfo=timezone.utc)
-    store_tz = pytz.timezone("America/Chicago")  # Default, replace with dynamic timezone if needed
     start_time_hour = current_utc - timedelta(hours=1)
     prev_timestamp_hour = {}
     prev_status_hour = {}
-    start_time_local = store_tz.normalize(start_time_hour.astimezone(store_tz))
-    current_time_local = store_tz.normalize(current_utc.astimezone(store_tz))
-
     subquery = create_subquery(start_time_hour,current_utc)
     stmt_hours = select(
         store_status.c.store_id,
@@ -89,8 +83,8 @@ async def process_hours(current_utc, report_data):
     async with SessionLocal() as session:
         hour_result = await session.stream(stmt_hours)
         async for batch in hour_result.yield_per(10):
-            await process_batch(batch,report_data,prev_timestamp_hour,prev_status_hour,'uptime_last_hour','downtime_last_hour',start_time_local,60)
-        await finalize_durations(report_data, prev_timestamp_hour, prev_status_hour, 'uptime_last_hour', 'downtime_last_hour', current_time_local,60)
+            await process_batch(batch,report_data,prev_timestamp_hour,prev_status_hour,'uptime_last_hour','downtime_last_hour',start_time_hour,60)
+        await finalize_durations(report_data, prev_timestamp_hour, prev_status_hour, 'uptime_last_hour', 'downtime_last_hour', current_utc,60)
 
 
 
