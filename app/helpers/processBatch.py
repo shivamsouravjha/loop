@@ -6,7 +6,7 @@ lock = Lock()
 async def process_batch(batch, report_data,prev_timestamps,prev_statuses,uptime_key,downtime_key, start_time_period, result_unit):
     async with lock:
             store_id, status, timestamp_utc = batch[0], batch[1], batch[2]
-            timestamp_utc = timestamp_utc.replace(tzinfo=timezone.utc)
+            timestamp_utc = timestamp_utc
 
             if store_id not in report_data:
                 report_data[store_id] = {
@@ -19,7 +19,7 @@ async def process_batch(batch, report_data,prev_timestamps,prev_statuses,uptime_
                 }
             if store_id not in prev_timestamps:
                 # Initialize with the start of the period
-                prev_timestamps[store_id] = start_time_period.replace(tzinfo=timezone.utc)
+                prev_timestamps[store_id] = start_time_period
                 prev_statuses[store_id] = status  # No previous status at the start
 
             duration = abs((timestamp_utc - prev_timestamps[store_id]).total_seconds()) / result_unit  # Convert to hours

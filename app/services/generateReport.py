@@ -8,11 +8,11 @@ from app.helpers.processBatch import process_batch
 import asyncio
 from pytz import utc
 from datetime import datetime, timezone
-
+import pytz
 async def generate_report(session, report_id):
     current_utc_str = "2023-01-19 15:28:46.983397"
     current_utc = datetime.strptime(current_utc_str, "%Y-%m-%d %H:%M:%S.%f")
-    print(current_utc,"curret")
+    
     # current_utc = datetime.now(timezone.utc) [uncomment to fetch for current timestamp]
 
     report_data = {}
@@ -39,22 +39,21 @@ async def generate_report(session, report_id):
         await session.execute(stmt_hours, {'data': str(report_data), 'report_id': report_id})
     await session.commit()
 
-def create_subquery(time_frame, start_time,current_utc):
+def create_subquery(start_time, current_time):
     default_timezone_str = literal("America/Chicago")  # Default timezone if not specified
     timezone_str = func.coalesce(store_timezone.c.timezone_str, default_timezone_str)
     local_time = func.timezone(timezone_str, store_status.c.timestamp_utc)
     start_time_str = func.timezone(timezone_str, start_time)
-    current_time_local = func.timezone(timezone_str,current_utc)
+    current_time_str = func.timezone(timezone_str, current_time)
 
     local_time_casted = cast(func.date_trunc('minute', local_time), Time)
     adjusted_dow = (extract('dow', local_time) + 6) % 7
-
     return (
         select(1)  
         .where(and_(
             store_hours.c.store_id == store_status.c.store_id,
             local_time >= start_time_str,
-            local_time < current_time_local,
+            local_time < current_time_str,
             adjusted_dow == store_hours.c.day,  # Day of week check adjusted
             local_time_casted >= cast(store_hours.c.start_time_local, Time),
             local_time_casted <= cast(store_hours.c.end_time_local, Time)
@@ -64,11 +63,16 @@ def create_subquery(time_frame, start_time,current_utc):
 
 
 async def process_hours(current_utc, report_data):
+    if current_utc.tzinfo is None:
+        current_utc = current_utc.replace(tzinfo=timezone.utc)
+    store_tz = pytz.timezone("America/Chicago")  # Default, replace with dynamic timezone if needed
     start_time_hour = current_utc - timedelta(hours=1)
     prev_timestamp_hour = {}
     prev_status_hour = {}
-    subquery = create_subquery('hour',start_time_hour,current_utc)
-    print(subquery,"sbqyre")
+    start_time_local = store_tz.normalize(start_time_hour.astimezone(store_tz))
+    current_time_local = store_tz.normalize(current_utc.astimezone(store_tz))
+
+    subquery = create_subquery(start_time_hour,current_utc)
     stmt_hours = select(
         store_status.c.store_id,
         store_status.c.status,
@@ -77,19 +81,16 @@ async def process_hours(current_utc, report_data):
         store_status
         .outerjoin(store_timezone, store_status.c.store_id == store_timezone.c.store_id)
     ).where(and_(
-        store_status.c.timestamp_utc >= start_time_hour,
-        store_status.c.timestamp_utc < current_utc,
         exists(subquery)
     )).order_by(
         store_status.c.store_id.asc(),
         store_status.c.timestamp_utc.asc()
     )
-    
     async with SessionLocal() as session:
         hour_result = await session.stream(stmt_hours)
         async for batch in hour_result.yield_per(100):
-            await process_batch(batch,report_data,prev_timestamp_hour,prev_status_hour,'uptime_last_hour','downtime_last_hour',start_time_hour,60)
-        await finalize_durations(report_data, prev_timestamp_hour, prev_status_hour, 'uptime_last_hour', 'downtime_last_hour', current_utc,60)
+            await process_batch(batch,report_data,prev_timestamp_hour,prev_status_hour,'uptime_last_hour','downtime_last_hour',start_time_local,60)
+        await finalize_durations(report_data, prev_timestamp_hour, prev_status_hour, 'uptime_last_hour', 'downtime_last_hour', current_time_local,60)
 
 
 
@@ -97,7 +98,7 @@ async def process_day(current_utc,report_data):
     start_time_day = current_utc - timedelta(days=1)
     prev_timestamp_day = {}
     prev_status_day = {}
-    subquery = create_subquery('day',start_time_day,current_utc)
+    subquery = create_subquery(start_time_day,current_utc)
 
     stmt_days  = select(
         store_status.c.store_id,
@@ -127,7 +128,7 @@ async def process_weeks(current_utc,report_data):
     start_time_week = current_utc - timedelta(weeks=1)
     prev_timestamp_week = {}
     prev_status_week = {}
-    subquery = create_subquery('week',start_time_week,current_utc)
+    subquery = create_subquery(start_time_week,current_utc)
 
     stmt_weeks = select(
         store_status.c.store_id,
